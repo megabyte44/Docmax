@@ -38,7 +38,7 @@ in `docmax.tui` or `docmax.pickers`.**
 | `docmax` (bare) | opens it **only** at an interactive terminal with `textual` installed and no `--json`; otherwise prints help and exits 0 |
 | `docmax tui --json` | refused, as one JSON error envelope on stdout |
 | `docmax tui` with no TTY | refused, `input.invalid_parameter`, exit 1 |
-| `docmax tui` without the extra | refused, `dependency.missing`, naming `pip install "DocmaxV3[tui]"` |
+| `docmax tui` without the extra | refused, `dependency.missing`, naming `pip install "Docmax[tui]"` |
 
 The three guards live in [`cli/main.py`](../../src/docmax/cli/main.py)'s
 `_no_command`, and the shared refusal in

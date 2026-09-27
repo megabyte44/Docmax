@@ -14,7 +14,7 @@ That decision was already false when it was written, and nobody involved knew.
 
 `m1-foundations` had been merged into `main` via **PR #1**, and seven releases
 had shipped on top of it — `v3.0.0a1` through `v3.0.0a7` — including a rename of
-the distribution to **`DocmaxV3`** and its publication to PyPI. The phase work
+the distribution to **`Docmax`** and its publication to PyPI. The phase work
 had been developing on a line forked from `4fc92f2` (M0) that never fetched, so
 `origin/main` moving 23 commits ahead went unnoticed until a routine
 `git fetch` during the `feat/core-foundation` task.
@@ -35,7 +35,7 @@ by component) is moot because the components arrived by merge, and its premise
 
 What `main` keeps, because it is released and validated:
 
-- the `DocmaxV3` name and version `3.0.0a7`, and the seven tags
+- the `Docmax` name and version `3.0.0a7`, and the seven tags
 - `core/registry.py`, `server/`, `cloud_client/`, `tools/`
 - `core/{atomic,cancellation,models,errors,branding}.py`
 - all five import-linter contracts, the wheel exclusion, the CI and release

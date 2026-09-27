@@ -45,7 +45,7 @@ def test_the_mcp_extra_exists(pyproject: dict[str, Any]) -> None:
 
 
 def test_the_sdk_is_not_a_base_dependency(pyproject: dict[str, Any]) -> None:
-    """Non-negotiable #3: `pip install DocmaxV3` gets a terminal tool.
+    """Non-negotiable #3: `pip install Docmax` gets a terminal tool.
 
     The SDK brings jsonschema, sse-starlette, httpx2, opentelemetry and, on
     Windows, pywin32. None of that belongs in the install of someone who wants
@@ -77,7 +77,7 @@ def test_the_extra_is_not_in_all(pyproject: dict[str, Any]) -> None:
     """
     combined = " ".join(extras(pyproject)["all"])
 
-    assert EXTRA not in combined.replace("DocmaxV3", "")
+    assert EXTRA not in combined.replace("Docmax", "")
 
 
 def test_the_installed_sdk_satisfies_the_floor() -> None:
@@ -191,4 +191,4 @@ def test_a_missing_extra_names_the_install_line(monkeypatch: pytest.MonkeyPatch)
     with pytest.raises(LocalDependencyMissingError) as caught:
         package.require_available()
 
-    assert 'pip install "DocmaxV3[mcp]"' in (caught.value.remedy or "")
+    assert 'pip install "Docmax[mcp]"' in (caught.value.remedy or "")

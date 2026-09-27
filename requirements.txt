@@ -1,7 +1,7 @@
 # Dependencies for the Vercel deployment of the Cloud Engine (api/index.py).
 #
 # This is deliberately leaner than the `server` extra in pyproject.toml, which
-# pulls in DocmaxV3[all] (opencv, pandas, textual, ...). Vercel's Python
+# pulls in Docmax[all] (opencv, pandas, textual, ...). Vercel's Python
 # functions have a size ceiling, and those extras exist for local engines that
 # a stateless serverless deployment can't run usefully anyway (see the
 # in-memory storage/job-store caveat in api/index.py). Tools whose local

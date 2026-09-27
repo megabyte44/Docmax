@@ -16,7 +16,7 @@ and what the schema can say), [ADR 0029](../adr/0029-the-mcp-policy-boundary.md)
 ## Install and run
 
 ```bash
-pip install "DocmaxV3[mcp]"
+pip install "Docmax[mcp]"
 docmax mcp --root ~/Documents/scans
 ```
 

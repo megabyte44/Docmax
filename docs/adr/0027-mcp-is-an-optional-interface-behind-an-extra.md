@@ -11,7 +11,7 @@ and the repository has already answered two of them for other interfaces.
 **The SDK is not small.** Installing the official `mcp` package pulls
 `jsonschema`, `sse-starlette`, `httpx2`, `httpcore2`, `opentelemetry-api`,
 `pyjwt`, `attrs`, `referencing`, `rpds-py`, `truststore` and — on Windows —
-`pywin32`. Non-negotiable #3 says `pip install DocmaxV3` gets a terminal tool
+`pywin32`. Non-negotiable #3 says `pip install Docmax` gets a terminal tool
 and nothing else, which is why `textual` is the `tui` extra and why FastAPI is
 the `server` extra.
 
@@ -50,7 +50,7 @@ the server, deliberately. `docmax.server` is excluded from the wheel because it
 is deployed from a checkout inside an image that also carries Ghostscript,
 Tesseract and Pandoc. `docmax mcp` is the opposite: a command a *user* runs on
 their own machine, named in their MCP client's configuration. Shipping the code
-and gating only the dependency is what makes `pip install "DocmaxV3[mcp]"` the
+and gating only the dependency is what makes `pip install "Docmax[mcp]"` the
 whole install story.
 
 **The CLI starts it, through one narrowly spelled ignored import**, extending

@@ -13,7 +13,7 @@ how to run it; it does not repeat their reasoning beyond what a deployer needs.
 
 ## Why this deploys from a checkout, not a package
 
-`pip install DocmaxV3` must stay a terminal tool with no web framework pulled
+`pip install Docmax` must stay a terminal tool with no web framework pulled
 in — that is non-negotiable #3 in `CLAUDE.md`. So `src/docmax/server/` is
 excluded from the wheel on purpose
 (`tests/hygiene/test_wheel_excludes_server.py`, `pyproject.toml`'s

@@ -9,8 +9,8 @@ build-backend = "setuptools.build_meta"
 # ============================================================================
 
 [project]
-name = "DocmaxV3"
-version = "3.3.0"
+name = "Docmax"
+version = "3.3.1"
 description = "Terminal-native document toolkit. Local-first, dual-engine, no server required."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -98,7 +98,7 @@ crypto = [
 # itself: its code is excluded from the wheel (see packages.find below) and is
 # run from a checkout.
 server = [
-    "DocmaxV3[all]",
+    "Docmax[all]",
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.30.0",
     "python-multipart>=0.0.9",
@@ -108,7 +108,7 @@ server = [
 ]
 # The MCP SDK, for `docmax mcp`. An extra rather than a base dependency: it
 # brings jsonschema, sse-starlette, httpx2, opentelemetry and (on Windows)
-# pywin32, and non-negotiable #3 says `pip install DocmaxV3` gets a terminal
+# pywin32, and non-negotiable #3 says `pip install Docmax` gets a terminal
 # tool and nothing else. Unlike the `server` extra, the *code* here ships in the
 # wheel -- `docmax mcp` is a command a user runs on their own machine, named in
 # their MCP client's configuration, so gating only the dependency is the whole
@@ -130,7 +130,7 @@ mcp = [
 # resolve to that external package instead of self-referencing, shadowing the
 # local editable install with v2's incompatible module layout.
 all = [
-    "DocmaxV3[ocr,tables,images,tui,crypto,remove-bg]",
+    "Docmax[ocr,tables,images,tui,crypto,remove-bg]",
 ]
 dev = [
     "pytest>=8.2.0",

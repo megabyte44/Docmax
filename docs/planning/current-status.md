@@ -12,7 +12,7 @@ fix it.
 
 **Phases 0–10 are complete. Milestones M1 through M10 are done — the whole
 roadmap, with one row of M9 deliberately not delivered, below; the published
-package is `DocmaxV3` 3.0.0a7, which predates all of them.**
+package is `Docmax` 3.0.0a7, which predates all of them.**
 
 | Phase | | |
 |---|---|---|

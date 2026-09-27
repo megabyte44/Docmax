@@ -126,7 +126,7 @@ it is ever wanted, `ToolSpec` is where it goes and it is additive.
 - **One extra subprocess per run** for `--list-langs`. Worth it for a message
   that names the installed packs.
 - **Two documented dependencies disappear from a published extra.** Anyone
-  who installed `DocmaxV3[ocr]` for v3.0.0a7 has two wheels they no longer need.
+  who installed `Docmax[ocr]` for v3.0.0a7 has two wheels they no longer need.
   Nothing breaks; they are simply not used.
 - Removing `pytesseract`/`pdf2image` from the mypy override list surfaced that
   modern `opencv-python` ships a `py.typed` and mypy was following it into
