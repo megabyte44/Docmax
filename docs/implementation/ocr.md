@@ -213,7 +213,7 @@ Consent is per tool and enforced by `EngineRouter` before a strategy is built;
 | `tesseract` | recognition. `apt install tesseract-ocr` · `brew install tesseract` · `winget install UB-Mannheim.TesseractOCR` |
 | `pdftoppm` | rasterisation, from Poppler. Shared with `to-images` |
 | language packs | per language, e.g. `apt install tesseract-ocr-deu` |
-| `DocmaxV3[ocr]` | OpenCV, **only for `--deskew`** |
+| `Docmax[ocr]` | OpenCV, **only for `--deskew`** |
 
 `docmax ocr --no-deskew` needs no Python extra at all. `pytesseract` and
 `pdf2image` are *not* used — ADR 0022 explains what that buys and what it costs.

@@ -66,7 +66,7 @@ These are behaviour changes a v2 user can actually hit. See
     result carrying the same `to_dict()` envelope the CLI puts on stdout — same
     codes, same remedies. A protocol failure stays on the JSON-RPC rung. No
     traceback and no credential ever reaches a client, both asserted.
-  - **`pip install "DocmaxV3[mcp]"`** — `mcp>=2.1,<3`, an optional extra and not
+  - **`pip install "Docmax[mcp]"`** — `mcp>=2.1,<3`, an optional extra and not
     a base dependency, verified against **2.1.1**, whose 2.x server API differs
     from the 1.x most documentation describes. The *code* ships in the wheel
     (unlike the server's), because `docmax mcp` is a command a user runs.
@@ -176,7 +176,7 @@ These are behaviour changes a v2 user can actually hit. See
     leave the destination untouched, exactly as on the command line.
   - Consent is the modal `errors.py` has specified since M0 and which nothing
     implemented; errors are a message and a remedy, never a traceback.
-  - Optional: `pip install "DocmaxV3[tui]"`. Without it, `docmax tui` reports
+  - Optional: `pip install "Docmax[tui]"`. Without it, `docmax tui` reports
     the install line rather than an `ImportError`, and a bare `docmax` prints
     help exactly as before.
 - **Visual pickers for `crop` and `reorder`.** `--interactive` opens a page in
@@ -319,7 +319,7 @@ These are behaviour changes a v2 user can actually hit. See
   before: `_position.py` owns the nine named positions `watermark` and `stamp`
   share, and `_permissions.py` owns the eight permission names `protect` writes
   and `permissions` reads.
-- **A `crypto` extra** — `pip install "DocmaxV3[crypto]"`, which is what pypdf
+- **A `crypto` extra** — `pip install "Docmax[crypto]"`, which is what pypdf
   needs to read or write anything stronger than RC4. Absent, `protect` names the
   install line instead of failing obscurely or downgrading in silence.
 - **`compress`** — shrinks a PDF with Ghostscript, and the first engine that is

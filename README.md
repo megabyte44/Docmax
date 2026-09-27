@@ -5,7 +5,7 @@ convert, redact — locally, privately, with no server to run and no browser tab
 to open.
 
 ```bash
-pip install DocmaxV3
+pip install Docmax
 docmax merge a.pdf b.pdf -o combined.pdf
 ```
 
@@ -26,7 +26,7 @@ DocMax assumes a terminal instead.
 
 |  | DocMax | Self-hosted web tools |
 |---|---|---|
-| Install | `pip install DocmaxV3` | Docker + a container |
+| Install | `pip install Docmax` | Docker + a container |
 | Interface | CLI and TUI | browser |
 | Over SSH | works | needs port forwarding |
 | Scripting | argv | HTTP against a running server |
@@ -83,10 +83,10 @@ Windows — not by good intentions. See
 ## Install
 
 ```bash
-pip install DocmaxV3              # the shell and the cloud client
-pip install "DocmaxV3[ocr]"       # local OCR
-pip install "DocmaxV3[crypto]"    # AES encryption for `protect`
-pip install "DocmaxV3[all]"       # everything
+pip install Docmax              # the shell and the cloud client
+pip install "Docmax[ocr]"       # local OCR
+pip install "Docmax[crypto]"    # AES encryption for `protect`
+pip install "Docmax[all]"       # everything
 ```
 
 The base install is deliberately small. Heavy dependencies arrive only when you
@@ -169,7 +169,7 @@ them without `--force`.
 ## Drive it from an AI agent
 
 ```bash
-pip install "DocmaxV3[mcp]"
+pip install "Docmax[mcp]"
 docmax mcp --root ~/Documents
 ```
 
@@ -219,7 +219,7 @@ a cancelled run leaves your destination exactly as it was. See
 ## An interface for when you are not scripting
 
 ```bash
-pip install "DocmaxV3[tui]"
+pip install "Docmax[tui]"
 docmax tui        # or just `docmax`, at a terminal
 ```
 

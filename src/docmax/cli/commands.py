@@ -673,7 +673,7 @@ def remove_bg(
     """Remove the background from an image, leaving a transparent PNG.
 
     Outputs always use PNG to preserve transparency. Requires rembg — run
-    `docmax doctor` to check, or install with `pip install "DocmaxV3[remove-bg]"`.
+    `docmax doctor` to check, or install with `pip install "Docmax[remove-bg]"`.
     The ONNX model is downloaded on first use to ~/.u2net/.
     """
     from docmax.cli import json_output
@@ -712,7 +712,7 @@ def compress_image(
 
     Compresses JPEG/WEBP using the quality parameter, PNG using lossless
     optimization. Format is never changed — use `convert` to change formats.
-    Requires Pillow — install with `pip install "DocmaxV3[images]"`.
+    Requires Pillow — install with `pip install "Docmax[images]"`.
     """
     from docmax.cli import json_output
     from docmax.cli.execution import execute
@@ -790,7 +790,7 @@ def resize(
     other two already keep the proportions, so there is nothing to decide.
 
     Quality applies to JPEG/WEBP; PNG is lossless and ignores it.
-    Requires Pillow — install with `pip install "DocmaxV3[images]"`.
+    Requires Pillow — install with `pip install "Docmax[images]"`.
     """
     from docmax.cli import json_output
     from docmax.cli.execution import execute
@@ -841,7 +841,7 @@ def convert_image(
     answer would write a file whose name misdescribes its contents.
 
     To also shrink the file, pipe the result through `compress-image`.
-    Requires Pillow — install with `pip install "DocmaxV3[images]"`.
+    Requires Pillow — install with `pip install "Docmax[images]"`.
     """
     from docmax.cli import json_output
     from docmax.cli.execution import execute
@@ -897,7 +897,7 @@ def watermark_image(
 
     Watermarks the image with text at the specified position, size, opacity, and
     angle. The watermark is a composite overlay that sits on top of the image
-    content. Requires Pillow — install with `pip install "DocmaxV3[images]"`.
+    content. Requires Pillow — install with `pip install "Docmax[images]"`.
     """
     from docmax.cli import json_output
     from docmax.cli.execution import execute
@@ -953,7 +953,7 @@ def protect(
     """Encrypt a PDF with a password.
 
     AES-256 by default, which needs the `crypto` extra —
-    `pip install "DocmaxV3[crypto]"`. The weaker RC4 algorithms work with no
+    `pip install "Docmax[crypto]"`. The weaker RC4 algorithms work with no
     extra install and have to be asked for by name, because a tool called
     `protect` should not quietly hand you broken encryption.
 
