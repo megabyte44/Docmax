@@ -28,6 +28,7 @@ from docmax.core.errors import (
     CorruptDocumentError,
     EncryptedDocumentError,
     InvalidParameterError,
+    LocalDependencyMissingError,
     OutputValidationError,
     UnsupportedFormatError,
 )
@@ -262,13 +263,38 @@ def test_no_documents_is_a_parameter_error(strategy: MergeLocal, tmp_path: Path)
     assert caught.value.remedy
 
 
-def test_a_non_pdf_input_is_refused(strategy: MergeLocal, tmp_path: Path) -> None:
-    """A Word document needs a different next step from a damaged PDF."""
-    source = tmp_path / "notes.txt"
-    source.write_text("this is not a pdf", encoding="utf-8")
+def test_a_completely_unknown_format_is_refused(strategy: MergeLocal, tmp_path: Path) -> None:
+    """An unrecognised extension (not PDF, not Office) raises UnsupportedFormatError.
+
+    Known Office extensions (.txt, .docx, .pptx, …) are forwarded to LibreOffice
+    and raise LocalDependencyMissingError when soffice is absent — tested below.
+    A truly alien extension should be refused outright.
+    """
+    source = tmp_path / "data.xyz"
+    source.write_bytes(b"some binary blob")
 
     with pytest.raises(UnsupportedFormatError):
         run(strategy, docs(source), tmp_path / "merged.pdf")
+
+
+def test_a_known_office_format_needs_libreoffice(strategy: MergeLocal, tmp_path: Path) -> None:
+    """PPTX and friends are forwarded to LibreOffice; without it the error says so.
+
+    This test does not actually need LibreOffice installed — it just verifies that
+    the right typed error is raised when the binary is absent, which is what
+    `LocalDependencyMissingError` is for.
+    """
+    import unittest.mock
+
+    source = tmp_path / "slides.pptx"
+    source.write_bytes(b"PK\x03\x04dummy pptx bytes")
+
+    # Simulate LibreOffice not being on PATH.
+    with unittest.mock.patch("docmax.tools._binaries.find", return_value=None):
+        with pytest.raises(LocalDependencyMissingError) as caught:
+            run(strategy, docs(source), tmp_path / "merged.pdf")
+
+    assert "soffice" in str(caught.value).lower() or "libreoffice" in str(caught.value).lower()
 
 
 def test_a_corrupt_pdf_is_refused(strategy: MergeLocal, tmp_path: Path) -> None:

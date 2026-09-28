@@ -14,13 +14,20 @@ from docmax.core.registry import Param, ToolSpec, register
 SPEC = register(
     ToolSpec(
         name="merge",
-        summary="Combine several PDFs into one, in the order given.",
+        summary=(
+            "Combine PDFs (and Office documents) into one PDF, in the order given. "
+            "PPTX, DOCX, ODT, XLSX and other LibreOffice-supported formats are "
+            "converted to PDF automatically when LibreOffice is installed."
+        ),
         category="assemble",
         module=__name__.rpartition(".")[0],
         # No cloud engine, deliberately. See the module docstring.
         supported_engines=frozenset({Engine.LOCAL}),
         accepts_multiple_inputs=True,
         default_suffix=".pdf",
+        # soffice is only needed when a non-PDF input is present; it is listed
+        # here so `doctor` can surface it and guide the user to install it.
+        requires_binaries=("soffice",),
         params=(
             Param(
                 name="outline",

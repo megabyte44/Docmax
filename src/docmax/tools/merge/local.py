@@ -7,20 +7,35 @@ that check in a subprocess.
 
 The strategy declares no base class. It satisfies ``EngineStrategy`` structurally,
 and :func:`build`'s return annotation is what makes mypy verify that it does.
+
+## Non-PDF inputs
+
+``merge`` now accepts any file that LibreOffice can export as PDF — which covers
+the common Office formats (PPTX, DOCX, ODT, ODP, XLS, XLSX, …) as well as
+plain text, HTML, and images. A non-PDF input is silently converted to a
+temporary PDF before merging, so the output is always a single, valid PDF.
+
+If LibreOffice is not installed, the tool raises :class:`LocalDependencyMissingError`
+*only when at least one non-PDF input is present* — a merge of PDFs still needs
+nothing beyond pypdf.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from docmax.core.errors import (
     CorruptDocumentError,
     EncryptedDocumentError,
+    ExternalToolFailedError,
     InvalidParameterError,
     UnsupportedFormatError,
 )
 from docmax.core.models import Engine, ToolResult
+from docmax.tools import _binaries
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -33,9 +48,28 @@ if TYPE_CHECKING:
 
 DEPENDENCY = "pypdf"
 
+# Extensions that pypdf can open directly.
+_PDF_SUFFIXES = frozenset({".pdf"})
+
+# Extensions LibreOffice can export to PDF.  This is intentionally broad —
+# LibreOffice itself decides whether it handles the file; we only need to know
+# that we should *try* to convert rather than hard-refuse.
+_SOFFICE_SUFFIXES = frozenset(
+    {
+        # Presentations
+        ".pptx", ".ppt", ".odp", ".pps", ".ppsx",
+        # Word-processor documents
+        ".docx", ".doc", ".odt", ".rtf",
+        # Spreadsheets
+        ".xlsx", ".xls", ".ods", ".csv",
+        # Other
+        ".txt", ".html", ".htm",
+    }
+)
+
 
 class MergeLocal:
-    """Concatenate PDFs with pypdf."""
+    """Concatenate PDFs (and Office documents) with pypdf + LibreOffice."""
 
     def is_available(self) -> bool:
         # find_spec, not an import: availability is asked on every routing
@@ -58,9 +92,9 @@ class MergeLocal:
     ) -> ToolResult:
         """Merge ``docs`` into ``target``, in the order given.
 
-        Pages are appended into a temp file on the destination's filesystem,
-        the validators check it, and only then is it renamed into place — so a
-        failure anywhere below leaves the destination exactly as it was.
+        Non-PDF inputs are converted to PDF by LibreOffice first.  Pure-PDF
+        merges never touch LibreOffice, so the dependency is optional unless
+        you actually pass a non-PDF file.
 
         **Progress convention, worth copying.** The tool calls ``start`` and
         ``advance``; it does *not* call ``finish``. Only the tool knows what the
@@ -83,6 +117,17 @@ class MergeLocal:
         outline = self._outline_option(params)
         started = time.monotonic()
 
+        # Decide up-front whether we need LibreOffice.  Only count suffixes that
+        # _SOFFICE_SUFFIXES knows about — an unknown extension will be refused
+        # inside _convert_to_pdf with UnsupportedFormatError, which is more
+        # informative than "soffice missing" and should always fire first.
+        needs_conversion = any(
+            d.suffix.lower() in _SOFFICE_SUFFIXES for d in docs
+        )
+        soffice_path: str | None = None
+        if needs_conversion:
+            soffice_path = _binaries.require("soffice", tool="merge")
+
         # pypdf is imported here rather than at module scope so that discovering
         # this tool — which happens on every `--help` — costs nothing.
         from pypdf import PdfWriter
@@ -91,16 +136,30 @@ class MergeLocal:
         bookmarks: list[tuple[str, int]] = []
 
         progress.start(f"Merging {len(docs)} document(s)", total=len(docs))
-        for document in docs:
-            # Between files is the safe checkpoint: nothing is on disk yet, and
-            # the staged file is discarded by the writer below.
-            cancellation.raise_if_cancelled(operation="merge")
 
-            reader = self._open(document)
-            bookmarks.append((document.path.stem, len(writer.pages)))
-            for page in reader.pages:
-                writer.add_page(page)
-            progress.advance()
+        # We use a single temp directory for all LibreOffice conversions.
+        # It is cleaned up whenever the run finishes (success, error, cancel).
+        with tempfile.TemporaryDirectory(prefix="docmax_merge_") as tmp_str:
+            tmp = Path(tmp_str)
+            for document in docs:
+                # Between files is the safe checkpoint: nothing is on disk yet.
+                cancellation.raise_if_cancelled(operation="merge")
+
+                if document.suffix.lower() in _PDF_SUFFIXES:
+                    pdf_path = document.path
+                else:
+                    pdf_path = self._convert_to_pdf(
+                        document,
+                        tmp,
+                        soffice=soffice_path,  # type: ignore[arg-type]
+                        cancellation=cancellation,
+                    )
+
+                reader = self._open_pdf(pdf_path, original_name=document.path.name)
+                bookmarks.append((document.path.stem, len(writer.pages)))
+                for page in reader.pages:
+                    writer.add_page(page)
+                progress.advance()
 
         if outline:
             for title, first_page in bookmarks:
@@ -120,6 +179,10 @@ class MergeLocal:
             duration_ms=int((time.monotonic() - started) * 1000),
             pages=pages,
         )
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _outline_option(params: dict[str, Any]) -> bool:
@@ -141,36 +204,72 @@ class MergeLocal:
         )
 
     @staticmethod
-    def _open(document: DocumentRef) -> PdfReader:
-        """Open one input, or raise the typed error that names what is wrong.
+    def _convert_to_pdf(
+        document: DocumentRef,
+        tmp: Path,
+        *,
+        soffice: str,
+        cancellation: CancellationToken,
+    ) -> Path:
+        """Convert *document* to PDF with LibreOffice and return the PDF path.
 
-        Three distinct failures, three distinct errors, because "merge failed"
-        sends a user looking in the wrong place: a Word document, a damaged
-        file, and a password-protected one each need a different next step.
+        LibreOffice writes ``<stem>.pdf`` into the directory given by
+        ``--outdir``.  We use a private temp directory so concurrent runs
+        cannot collide, and so cleanup is automatic.
         """
-        from pypdf import PdfReader
-        from pypdf.errors import PyPdfError
-
-        if document.suffix != ".pdf":
+        suffix = document.suffix.lower()
+        if suffix not in _SOFFICE_SUFFIXES:
+            # Known-PDF suffixes were handled before this call; anything that
+            # reaches here and is also not a known Office format gets a typed
+            # refusal that names the fix instead of a confusing LibreOffice error.
             raise UnsupportedFormatError(
-                f"merge only reads PDFs, and {document.path.name} is not one.",
+                f"merge cannot convert {document.path.name} to PDF automatically. "
+                f"Supported non-PDF formats: {', '.join(sorted(_SOFFICE_SUFFIXES))}.",
                 context={"path": str(document.path), "suffix": document.suffix},
             )
 
+        _binaries.run(
+            [
+                soffice,
+                "--headless",
+                "--convert-to",
+                "pdf",
+                "--outdir",
+                str(tmp),
+                str(document.path),
+            ],
+            tool="merge",
+            cancellation=cancellation,
+        )
+
+        expected = tmp / (document.path.stem + ".pdf")
+        if not expected.exists():
+            raise ExternalToolFailedError(
+                f"LibreOffice did not produce {expected.name} for {document.path.name}.",
+                context={"path": str(document.path), "expected": str(expected)},
+            )
+        return expected
+
+    @staticmethod
+    def _open_pdf(path: Path, *, original_name: str) -> PdfReader:
+        """Open a PDF path, raising typed errors that name what went wrong."""
+        from pypdf import PdfReader
+        from pypdf.errors import PyPdfError
+
         try:
-            reader = PdfReader(str(document.path))
+            reader = PdfReader(str(path))
         except (PyPdfError, OSError, ValueError) as exc:
             raise CorruptDocumentError(
-                f"{document.path.name} could not be read as a PDF: {exc}",
-                context={"path": str(document.path)},
+                f"{original_name} could not be read as a PDF: {exc}",
+                context={"path": str(path)},
             ) from exc
 
         if reader.is_encrypted:
             # Checked before touching .pages, which raises its own error for
             # this case with a far less useful message.
             raise EncryptedDocumentError(
-                f"{document.path.name} is password-protected.",
-                context={"path": str(document.path)},
+                f"{original_name} is password-protected.",
+                context={"path": str(path)},
             )
 
         return reader

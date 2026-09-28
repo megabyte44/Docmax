@@ -1,9 +1,9 @@
-"""Combine several PDFs into one.
+"""Combine PDFs and Office documents into one PDF.
 
-The reference tool for the local-only shape: pure pypdf, no external binary, no
-cloud engine. Uploading a document to perform a millisecond-long pure-Python
-operation would be slower, less private, and would need a network — see
-``docs/architecture/overview.md``.
+Non-PDF inputs (PPTX, DOCX, ODT, XLSX, …) are converted to PDF by LibreOffice
+in headless mode before merging, so the caller always receives a valid PDF.
+LibreOffice is only required when at least one non-PDF input is present — a
+pure-PDF merge depends only on pypdf, as before.
 """
 
 from __future__ import annotations
