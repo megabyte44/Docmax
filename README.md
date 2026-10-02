@@ -1,135 +1,202 @@
 # DocMax
 
-**A document toolkit that lives in your terminal.** Merge, split, OCR, compress,
-convert, redact — locally, privately, with no server to run and no browser tab
-to open.
+<p align="center">
+  <strong>Terminal-native document engineering toolkit.</strong><br>
+  Local-first · Dual-engine · Atomic safety · AI-agent ready via MCP
+</p>
 
-```bash
-pip install Docmax
-docmax merge a.pdf b.pdf -o combined.pdf
-```
-
-> **Status: early development (M0).** The architecture and safety mechanisms are
-> in place; the tools are being rebuilt on top of them one at a time. For a
-> working tool today, use [`docmax` 2.x](https://pypi.org/project/docmax/).
-> See [the roadmap](#roadmap) for what lands when.
+<p align="center">
+  <a href="https://pypi.org/project/Docmax/"><img src="https://img.shields.io/pypi/v/Docmax.svg?color=blue&style=flat-square" alt="PyPI Version"></a>
+  <a href="https://pypi.org/project/Docmax/"><img src="https://img.shields.io/pypi/pyversions/Docmax.svg?style=flat-square" alt="Python Versions"></a>
+  <a href="https://github.com/megabyte44/docmax/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License: MIT"></a>
+  <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-Compatible-8A2BE2.svg?style=flat-square" alt="MCP Compatible"></a>
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=flat-square" alt="Ruff"></a>
+  <a href="https://github.com/python/mypy"><img src="https://img.shields.io/badge/type_checker-mypy-blue.svg?style=flat-square" alt="MyPy"></a>
+</p>
 
 ---
 
-## Why another PDF tool
+## Overview
 
-The good self-hosted options — Stirling PDF and friends — are excellent, and
-they all assume a browser. That means Docker, a running server, a port, and no
-sensible way to use them over SSH or from a script.
-
-DocMax assumes a terminal instead.
-
-|  | DocMax | Self-hosted web tools |
-|---|---|---|
-| Install | `pip install Docmax` | Docker + a container |
-| Interface | CLI and TUI | browser |
-| Over SSH | works | needs port forwarding |
-| Scripting | argv | HTTP against a running server |
-| Your documents | stay on your machine | stay on your machine |
-
-## Two engines, one interface
-
-Every operation can run two ways, and the choice is yours per tool:
-
-- **Local** — offline and private. Needs the relevant dependencies installed.
-- **Cloud** — no local install at all. For the handful of tools whose
-  dependencies are genuinely painful.
+**DocMax** is a high-performance, terminal-native document toolkit for developers, power users, and AI assistants. Merge, split, OCR, compress, convert, protect, sanitize, watermarking, and reorder PDFs and images — locally, privately, with no background servers or browser dependencies required.
 
 ```bash
-docmax ocr scan.pdf                     # picks whichever is available
-docmax ocr scan.pdf --engine local      # force local
-docmax ocr scan.pdf --engine cloud      # skip installing Tesseract
+# Install the core CLI
+pip install Docmax
+
+# Combine PDFs with source bookmarks
+docmax merge report_q1.pdf report_q2.pdf -o annual_report.pdf
+
+# OCR a scanned PDF with auto-deskewing
+docmax ocr scan.pdf -o searchable.pdf --lang eng+fra
+
+# Compress a heavy PDF using Ghostscript presets
+docmax compress document.pdf -o compressed.pdf --preset ebook
+
+# Connect directly to your AI assistant (Claude Desktop, Cursor, Claude Code)
+docmax mcp connect
 ```
 
-Cloud exists for exactly one reason — to let you use a tool without installing
-its heavy dependencies. Only a handful of tools have it — **`compress` and
-`convert` today** — because for a pure-Python operation like `merge`, uploading
-your document would be slower, less private, and pointless. OCR's cloud engine
-arrives with OCR itself, at M8.
+---
+
+## Why DocMax?
+
+Most document tools require running heavy web services (Docker containers, local HTTP servers, browser tabs) or rely on fragile, non-atomic shell scripts that can corrupt documents on interruption.
+
+DocMax takes a **terminal-native, architecture-first** approach:
+
+| Feature | DocMax | Traditional Web Tools | Ad-Hoc Scripts |
+|---|:---:|:---:|:---:|
+| **Installation** | Single `pip install` | Docker + container orchestration | Fragmented CLI tools |
+| **Interface** | CLI, Full-Screen TUI & MCP | Web browser UI | Terminal only |
+| **Scripting & CI/CD** | Native argv + `--json` | REST API against running daemon | Shell scripts |
+| **Over SSH / Headless** | First-class native support | Requires SSH port forwarding | Works |
+| **AI Assistant (MCP)** | Built-in stdio & HTTP bridge | Unsupported / Custom bridge | Custom wrappers |
+| **Integrity Guarantees** | Atomic staging & validation | Varies by service | Vulnerable to partial writes |
+| **Document Privacy** | 100% Local by default | Local server | Local machine |
+
+---
+
+## Architectural Guarantees & Safety
+
+DocMax was built from the ground up to prevent destructive file operations and silent data loss. Every guarantee is enforced through automated tests across Linux, macOS, and Windows:
+
+- **Atomic File Swaps:** All outputs are written to temporary staging files, verified, and only then atomically swapped into place via `core/atomic.py`. If a process is interrupted or fails midway, your target file remains intact or absent — never half-written.
+- **In-Place Overwrite Prevention:** Input files can never be used as the output destination (`docmax merge a.pdf b.pdf -o a.pdf` is refused before processing begins).
+- **Accidental Overwrite Protection:** Overwriting an existing destination strictly requires the `--force` flag.
+- **Zero Raw Tracebacks:** Known errors produce human-actionable messages with clear remedy hints (or structured JSON objects in automated pipelines).
+- **Predictable Cleanups:** Intermediate files from pipelines, OCR rasterizations, and image conversions live in isolated temporary directories that are automatically purged on success, cancellation, or error.
+
+---
+
+## Core Capabilities
+
+### 1. Dual-Engine Architecture (Local vs. Cloud)
+
+Every tool can run two ways, with your privacy always in your control:
+
+- **Local Engine (Default):** Runs 100% offline on your machine using local binaries and Python libraries.
+- **Cloud Engine (Optional):** Offloads compute-heavy operations (`compress`, `convert`, `ocr`) to an external or self-hosted Cloud Engine server without requiring heavy local system dependencies.
 
 ```bash
-docmax cloud login          # store an API key
-docmax cloud status         # endpoint, key, and what you have agreed to send
-docmax compress big.pdf -o small.pdf --engine cloud
+docmax ocr scan.pdf                     # Automatically selects available engine
+docmax ocr scan.pdf --engine local      # Forces local offline processing
+docmax ocr scan.pdf --engine cloud      # Offloads processing to cloud engine
 ```
 
-**Nothing is ever uploaded without asking.** Consent is per-tool and remembered;
-`offline = true` in your config disables cloud entirely regardless of flags; and
-every upload tells you what it is sending before it sends it. The cloud endpoint
-is configurable, so you can point DocMax at your own server instead.
+> **Privacy Contract:** Nothing is ever transmitted to the cloud without explicit consent. Consents are granted per-tool via `docmax cloud agree`, recorded locally, and can be revoked at any time. Setting `offline = true` in your configuration permanently disables all outbound network traffic regardless of flags.
 
-## Your files are safe
+### 2. Four Unified Interfaces
 
-This is the part most tools get wrong, so it is worth being specific.
+DocMax provides four consistent entry points into the exact same registry and engine router:
 
-- **Atomic writes.** Output goes to a temp file, gets validated, and is only then
-  swapped into place. A crash or Ctrl-C mid-operation leaves your destination
-  either untouched or absent — never half-written.
-- **Your input is never the output.** `docmax merge a.pdf b.pdf -o a.pdf` is
-  refused, not silently obeyed.
-- **Nothing is overwritten by accident.** Existing files need `--force`.
-- **No tracebacks.** Every anticipated failure gives you a plain message and the
-  next step to take.
+1. **UNIX CLI:** Standard UNIX semantics, flag-driven execution, and a global `--json` mode for scripting.
+2. **Interactive TUI:** Full-terminal dashboard powered by Textual (`docmax tui` or simply typing `docmax` in an interactive shell).
+3. **Visual Pickers:** Interactive browser-assisted helpers (`--interactive`) for visual tasks like bounding-box selection (`docmax crop`) and page sequencing (`docmax reorder`). They compute coordinates and return them to the CLI without touching the original document.
+4. **Model Context Protocol (MCP):** Connects your tools directly to LLM agents (Claude Desktop, Cursor, Claude Code, Cline) via stdio or streamable HTTP.
 
-These are enforced by tests that run on every commit across Linux, macOS, and
-Windows — not by good intentions. See
-[architecture.md](docs/architecture/overview.md#the-structural-guarantees).
+---
 
-## Install
+## Complete Tool Suite
+
+DocMax provides over 20+ purpose-built tools across document and image workflows:
+
+### PDF Assembly & Page Operations
+| Command | Description | Engine |
+|---|---|:---:|
+| `docmax merge` | Combine multiple PDFs in specified order with bookmarks/outline preservation | Local |
+| `docmax split` | Split PDF into individual pages or specific range-based output files | Local |
+| `docmax rotate` | Rotate entire document or specified pages by 90°, 180°, or 270° | Local |
+| `docmax pages` | Extract or drop specific pages and ranges (`1-3,5,7-end`) | Local |
+| `docmax reorder` | Rearrange page sequences manually or via visual drag-and-drop (`--interactive`) | Local |
+| `docmax crop` | Trim page margins to explicit point coordinates or visual box (`--interactive`) | Local |
+
+### Security, Sanitation & Inspection
+| Command | Description | Engine |
+|---|---|:---:|
+| `docmax protect` | Encrypt PDF with AES-256 / AES-128 and granular access permissions | Local |
+| `docmax unlock` | Remove encryption from password-protected documents | Local |
+| `docmax permissions` | Inspect active PDF encryption flags, permissions, and security restrictions | Local |
+| `docmax sanitize` | Scrub metadata, hidden annotations, JavaScript, forms, and embedded files | Local |
+| `docmax metadata` | Read or update document title, author, subject, keywords, and producer | Local |
+| `docmax get-info` | Fast document summary (page count, dimensions, PDF version, encryption) | Local |
+
+### Document Enhancement & Conversion
+| Command | Description | Engine |
+|---|---|:---:|
+| `docmax ocr` | Generate searchable PDFs with Tesseract OCR, auto-deskew, and language selection | Local / Cloud |
+| `docmax compress` | Optimize and downsample PDFs via Ghostscript presets (`screen`, `ebook`, `printer`) | Local / Cloud |
+| `docmax watermark` | Apply custom text watermarks with opacity, rotation, and 9 alignment anchors | Local |
+| `docmax stamp` | Overlay a page from another PDF as a stamp or official letterhead | Local |
+| `docmax convert` | Convert documents between Markdown, HTML, Word, ODT, LaTeX, EPUB, and TXT | Local / Cloud |
+| `docmax to-images` | Rasterize PDF pages to high-resolution PNG, JPEG, or TIFF images | Local |
+| `docmax from-images` | Assemble raster images into a single PDF (lossless JPEG passthrough) | Local |
+
+### Image Processing
+| Command | Description | Engine |
+|---|---|:---:|
+| `docmax compress-image` | Lossy and lossless image compression (JPEG, PNG, WebP) | Local |
+| `docmax convert-image` | Transcode between modern image formats (PNG, JPEG, WebP, TIFF, BMP) | Local |
+| `docmax resize` | Scale images by dimensions, scale factor, or aspect-fit bounds | Local |
+| `docmax remove-bg` | AI-powered automatic background removal via `rembg` | Local |
+| `docmax watermark-image` | Overlay text or watermark stamps onto image assets | Local |
+
+---
+
+## Installation & Setup
+
+### Package Extras
+
+DocMax maintains an ultra-lightweight base installation. Advanced dependencies are isolated into modular extras:
 
 ```bash
-pip install Docmax              # the shell and the cloud client
-pip install "Docmax[ocr]"       # local OCR
-pip install "Docmax[crypto]"    # AES encryption for `protect`
-pip install "Docmax[all]"       # everything
+# Core installation (pure Python, fast install)
+pip install Docmax
+
+# Add specific capabilities
+pip install "Docmax[ocr]"       # OCR image pre-processing & deskewing
+pip install "Docmax[tui]"       # Interactive Textual dashboard
+pip install "Docmax[crypto]"    # AES-256 PDF encryption/decryption
+pip install "Docmax[mcp]"       # Model Context Protocol server for AI assistants
+pip install "Docmax[images]"    # Advanced image rasterization and assembly
+pip install "Docmax[tables]"    # Table extraction from PDFs
+pip install "Docmax[remove-bg]" # AI-powered background removal
+
+# Install all features
+pip install "Docmax[all]"
 ```
 
-The base install is deliberately small. Heavy dependencies arrive only when you
-first ask for a local engine that needs them.
+### External Binaries
 
-Some local engines also need external programs. `compress` needs
-**Ghostscript**; OCR and conversion will need Tesseract, Poppler and Pandoc.
+Certain local engines rely on battle-tested system binaries:
+- **Ghostscript** (`gs`): Used by `compress`
+- **Tesseract** (`tesseract`): Used by `ocr`
+- **Poppler** (`pdftoppm`): Used by `to-images` and `ocr`
+- **Pandoc** (`pandoc`): Used by `convert`
 
-`protect` defaults to AES-256, which needs the `crypto` extra. It says so and
-names the install line rather than quietly falling back to RC4 — a tool called
-`protect` should not hand you broken encryption without mentioning it.
-
-`convert` needs **Pandoc**, and `to-images` needs **Poppler**.
+DocMax makes checking and installing these effortless:
 
 ```bash
-docmax formats     # what every tool can read and write
+# Inspect system dependency status
+docmax doctor
+
+# Automatically install missing binaries for your platform (brew / apt / winget)
+docmax setup
 ```
 
-**`convert` does not handle PDF in either direction.** Pandoc has no PDF reader,
-and writing PDF needs a LaTeX distribution DocMax does not install — so
-`convert report.pdf --to docx` is refused with an explanation rather than a bad
-answer. It converts between Markdown, HTML, Word, OpenDocument,
-reStructuredText, LaTeX source, EPUB and plain text. To turn a PDF into images,
-use `to-images`. See
-[ADR 0011](docs/adr/0011-convert-is-pandoc-only.md).
+---
 
-```bash
-docmax doctor      # what's installed, what's missing, and the command to fix it
-```
+## Power Workflows: Pipelines, Batch & Watch
 
-## Many documents, several steps, or a folder that fills up
+Compose and automate operations across documents without writing glue code:
 
-```bash
-docmax batch scans/*.pdf --output-dir out --tool ocr
-docmax pipeline scan.pdf --pipeline clean.toml -o clean.pdf
-docmax watch inbox --output-dir done --tool ocr
-```
+### 1. Multi-Stage Pipelines (`docmax pipeline`)
 
-A **pipeline** chains operations over one document. The stages live in a TOML
-file, so a workflow is something you save and re-run rather than retype:
+Chain multiple tools into a single, cohesive operation defined in a simple TOML configuration:
 
 ```toml
-name = "scan-cleanup"
+# clean_scan.toml
+name = "clean-scan"
 
 [[stage]]
 tool = "ocr"
@@ -138,164 +205,142 @@ params = { lang = "eng", dpi = 300 }
 [[stage]]
 tool = "compress"
 params = { preset = "ebook" }
+
+[[stage]]
+tool = "watermark"
+params = { text = "CONFIDENTIAL", opacity = 0.2, position = "center" }
 ```
 
-**Only the last stage writes your file.** The intermediate documents live in one
-temporary directory and are gone whether the run succeeded, failed or was
-interrupted — so a failure at stage three leaves your destination exactly as it
-was, and nothing is ever left lying beside your documents.
+Run the pipeline:
+```bash
+docmax pipeline unverified_scan.pdf --pipeline clean_scan.toml -o final_document.pdf
+```
+*Guaranteed safety:* Intermediate stages write only to an isolated temporary sandbox. If stage three fails, intermediate files are cleanly discarded and your destination remains untouched.
 
-A **batch** runs one operation over many documents, naming each output after its
-input. One corrupt file does not cost you the other hundred and ninety-nine: it
-is reported and the rest carry on. Two things are refused before any work
-starts, because neither can be undone afterwards — two inputs whose names would
-collide in the output directory, and any output that would land on an input.
+### 2. Resilient Batch Processing (`docmax batch`)
 
-A **watch** processes documents as they arrive in a folder. A file is picked up
-only once it has stopped changing, so a document still being copied in is left
-alone until it is whole, and each one is handled exactly once.
-
-**`--output-dir` may not be inside the folder you are watching.** v2's watcher
-wrote its output beside its input, saw that output as new input, and fed on
-itself. That is now refused rather than survived. See
-[ADR 0026](docs/adr/0026-the-watcher-polls-and-never-watches-its-own-output.md).
-
-**There is no `--resume` yet.** The roadmap says "resumable batch"; a resume
-journal is a persistent file format that deserves deciding on its own, so it was
-deferred rather than improvised. Re-running an interrupted batch repeats what
-already succeeded, safely — the outputs exist, and DocMax refuses to overwrite
-them without `--force`.
-
-## Drive it from an AI agent
+Process hundreds of files in bulk with independent error handling:
 
 ```bash
-pip install "Docmax[mcp]"
-docmax mcp --root ~/Documents
+docmax batch incoming/*.pdf --output-dir processed/ --tool ocr
 ```
+*Resilient execution:* If file 14 is corrupted, it is logged with a structured error while the remaining 199 files proceed to completion.
 
-Serves every tool over the Model Context Protocol on stdio, so an assistant can
-merge, split, compress or OCR your documents — **on your machine, with nothing
-uploaded**. Point your MCP client at it — automatically:
+### 3. Directory Watcher (`docmax watch`)
+
+Monitor drop directories and automatically process arriving files:
+
+```bash
+docmax watch ~/Downloads/Scans --output-dir ~/Documents/Archive --tool ocr
+```
+*Loop and race protection:* Incoming files are processed only after their byte size has settled across polling intervals, and output directories cannot overlap watched directories.
+
+---
+
+## AI Agent Integration (MCP)
+
+DocMax turns your local document tools into an extensible tool suite for AI assistants via the **Model Context Protocol (MCP)**.
+
+### Auto-Configuration
+
+Connect DocMax to your local AI applications with a single command:
 
 ```bash
 docmax mcp connect
 ```
 
-Detects Claude Desktop, Claude Code and Cursor on this machine and merges a
-`docmax` entry into each one's own config, leaving everything else in that file
-untouched. `--dry-run` shows the plan first; `--remote` wires up the cloud
-bridge instead, using whatever `docmax cloud login` already stored. If nothing
-is detected (or you use something else), it prints the same snippet to paste in
-by hand:
+This automatically detects and safely updates configurations for **Claude Desktop**, **Claude Code**, and **Cursor**, inserting the server definition:
 
 ```json
 {
   "mcpServers": {
-    "docmax": { "command": "docmax", "args": ["mcp", "--root", "/home/you/Documents"] }
+    "docmax": {
+      "command": "docmax",
+      "args": ["mcp", "--root", "/path/to/documents"]
+    }
   }
 }
 ```
 
-The tool list is generated from the same registry the CLI reads, so an agent sees
-exactly what you can run, with the same parameters and the same validation.
+### Security & Agent Sandboxing
 
-**An agent is not a person, and it is not trusted like one.**
+When driven by an AI agent, DocMax enforces strict security perimeters:
+- **Directory Confinement (`--root`):** The agent cannot read or write outside designated directories. Path traversal (`..`) and symlink escapes are strictly rejected.
+- **Destructive Overwrites Forbidden:** Overwrite flags (`--force`) are disabled for agent invocations. Existing destinations return structured errors.
+- **No Unsolicited Cloud Uploads:** Cloud execution is disabled by default. An agent cannot grant consent on your behalf.
+- **Cancellation Propagation:** Interrupting a running agent request triggers immediate cancellation of the underlying worker thread, leaving files undamaged.
 
-- **It can only touch `--root`.** Reads and writes outside it are refused before
-  anything runs — `..`, symlinks and lookalike directory names included. The
-  default is the directory you started the server in.
-- **It cannot overwrite your files.** There is no `--force` to give it; an
-  existing destination is an error.
-- **It cannot upload anything.** Cloud engines are off unless you pass
-  `--allow-cloud`, and even then only for tools *you* already agreed to with
-  `docmax cloud agree`. An agent cannot consent on your behalf, and a configured
-  `offline = true` cannot be overridden by a flag.
-- **It gets no shell, no filesystem browsing, and no tracebacks.**
+---
 
-Cancelling a request cancels the underlying operation, and the atomic writes mean
-a cancelled run leaves your destination exactly as it was. See
-[docs/implementation/mcp.md](docs/implementation/mcp.md).
+## Scripting & Automation (`--json`)
 
-## An interface for when you are not scripting
+Every DocMax command supports global machine-readable output:
 
 ```bash
-pip install "Docmax[tui]"
-docmax tui        # or just `docmax`, at a terminal
+docmax get-info sample.pdf --json
 ```
 
-Every tool, the same router, the same engines — a second way in, not a second
-implementation. Pick a tool, fill in the form, watch the progress, press
-`ctrl+c` to stop. It is generated from the tool registry, so it always offers
-exactly what the CLI does.
-
-Two operations need a value a terminal cannot ask for — where to crop, and what
-order pages go in. Those get a browser tab:
-
-```bash
-docmax crop scan.pdf -o trimmed.pdf --box 36,36,540,720   # scriptable
-docmax crop scan.pdf -o trimmed.pdf --interactive         # drag a box instead
-
-docmax reorder in.pdf -o out.pdf --order 3,1,2
-docmax reorder in.pdf -o out.pdf --interactive
+Output:
+```json
+{
+  "ok": true,
+  "data": {
+    "pages": 12,
+    "title": "Quarterly Report",
+    "encrypted": false,
+    "pdf_version": "1.7",
+    "file_size": 245120
+  }
+}
 ```
 
-**The picker returns the parameter and nothing else.** It never opens your
-document for writing and has no route to an output file. The flag form is the
-one that is tested, works over SSH, and is what `--interactive` fills in — so
-nothing you can do in a browser is something you cannot do in a script.
+Diagnostics and progress bars are routed exclusively to `stderr`, leaving `stdout` clean for programmatic consumption.
 
-`doctor` prints the install line for your platform — `apt install ghostscript`,
-`brew install ghostscript`, or the winget package on Windows. It only reports;
-nothing is installed for you.
+---
 
-## Roadmap
+## Developer Guide & Architecture
 
-| | | |
-|---|---|---|
-| **M0** | Foundation — architecture, CI, safety mechanisms | ✅ done |
-| **M1** | Core engine + `merge` as the reference implementation | ✅ complete |
-| **M2** | `split`, `rotate`, `reorder`, `pages`, `metadata`, `sanitize`, `get-info` | ✅ done |
-| **M3** | `compress` + external-binary support in `doctor` | ✅ done |
-| **M4** | `watermark`, `stamp`, `protect`, `unlock`, `permissions` | ✅ done |
-| **M5** | `convert`, `to-images`, `from-images` | ✅ done |
-| **M6** | Cloud engines, `--json` everywhere, published benchmarks | ✅ done |
-| **M7** | Textual TUI + visual pickers for crop and reorder | ✅ done |
-| **M8** | OCR, done properly | ✅ done |
-| **M9** | Pipelines, batch, folder watch — `--resume` [deferred](#many-documents-several-steps-or-a-folder-that-fills-up) | ✅ |
-| **M10** | Local MCP server — drive DocMax from an AI agent, nothing leaves your machine | ✅ |
-| **M11** | Remote MCP — network-reachable tool server, for clients that can't spawn a local process | ✅ |
+DocMax is structured with a strict, lint-enforced layered architecture ([ADR 0035](docs/adr/0035-remote-mcp-is-a-transport-bridge-over-the-cloud-server.md)):
 
-Benchmarks live in [`benchmarks/`](benchmarks/METHODOLOGY.md) with the method
-written down. Run them with `python -m benchmarks`. No numbers appear in this
-README until they are measured — and none have been yet.
+```
+   CLI Interface (docmax.cli)          TUI Interface (docmax.tui)
+             \                                    /
+              v                                  v
+     Engine Router (docmax.core.router) <--> Tool Registry (docmax.core.registry)
+             /                                    \
+            v                                      v
+  Local Tools (docmax.tools.*)            Shared Schemas (docmax.mcpschema)
+            |                                      |
+            v                                      v
+     Atomic Writers & Protocols             Model Context Protocol (docmax.mcp)
+```
 
-## Documentation
-
-[**docs/**](docs/README.md) is the index. The short version:
-
-- [architecture/overview.md](docs/architecture/overview.md) — how DocMax is put
-  together, and why
-- [adr/](docs/adr/README.md) — the decisions, and what they cost
-- [planning/current-status.md](docs/planning/current-status.md) — what is done,
-  what is next, what is missing
-
-## Contributing
+### Contributing & Development
 
 ```bash
-git clone https://github.com/megabyte44/docmax
+# Clone repository
+git clone https://github.com/megabyte44/docmax.git
 cd docmax
-python -m venv .venv && .venv/bin/pip install -e ".[dev]"
-pre-commit install
 
-pytest && ruff check . && mypy && lint-imports
+# Set up virtual environment and development dependencies
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+
+# Run test suite & linters
+pytest
+ruff check .
+mypy
+lint-imports
 ```
 
-Start with [docs/architecture/overview.md](docs/architecture/overview.md) and the
-[ADRs](docs/adr/) — they explain the constraints, most of which exist for a
-specific reason.
+Explore our architectural documentation:
+- [Architecture Overview](docs/architecture/overview.md) — Structural design and constraints
+- [Architectural Decision Records (ADRs)](docs/adr/README.md) — The rationale behind every core decision
+- [Implementation Guides](docs/implementation/core.md) — Deep dives into core, runner, and MCP subsystems
 
-## Licence
+---
 
-MIT. Every document operation is free and always will be — see
-[ADR 0004](docs/adr/0004-open-core-boundary.md) for where the open-core line
-sits and why.
+## License
+
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.

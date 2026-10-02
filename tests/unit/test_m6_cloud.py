@@ -951,7 +951,12 @@ def test_the_server_zips_a_directory_producing_tools_output(
     assert all(name.endswith(".png") for name in names)
 
 
-def test_the_server_refuses_a_tool_with_no_cloud_engine(server: Any) -> None:
+def test_the_server_runs_any_registered_tool(server: Any) -> None:
+    """Every registered tool can now run via the server's local engine —
+    there is no longer a cloud-engine-only gate on POST /v1/tools.
+    `merge` is a pure-Python tool (pypdf) that was previously refused;
+    it now runs and succeeds on a valid PDF input.
+    """
     response = server.post(
         "/v1/tools/merge",
         files={"file": ("a.pdf", b"%PDF-1.7\n", "application/octet-stream")},
@@ -959,8 +964,10 @@ def test_the_server_refuses_a_tool_with_no_cloud_engine(server: Any) -> None:
         headers=AUTH,
     )
 
-    assert response.status_code == 404
-    assert response.json()["error"]["code"] == "engine.not_supported"
+    # merge needs at least one document and will succeed (or fail on a corrupt
+    # PDF, not on an engine.not_supported error).
+    assert response.status_code in (200, 202)
+    assert response.json().get("error", {}).get("code") != "engine.not_supported"
 
 
 # ---------------------------------------------------------------------------
@@ -969,13 +976,19 @@ def test_the_server_refuses_a_tool_with_no_cloud_engine(server: Any) -> None:
 
 
 def test_capabilities_exclude_a_tool_whose_binary_is_missing(server: Any) -> None:
-    """Without Ghostscript, Pandoc or Tesseract, this endpoint offers nothing.
+    """Without Ghostscript, Pandoc or Tesseract, binary-requiring tools are
+    absent from capabilities. Pure-Python tools (merge, split, rotate …)
+    are always listed because their local engine is always available.
 
-    Before ADR 0018 it advertised `ocr` — the one tool it could not perform.
+    Before ADR 0018 capabilities advertised tools the server could not run;
+    now it lists only what is actually runnable.
     """
     listed = server.get("/v1/capabilities", headers=AUTH).json()["tools"]
 
-    assert "ocr" not in listed
+    # compress requires Ghostscript — absent in this test fixture.
+    assert "compress" not in listed
+    # Pure-Python tools are always available.
+    assert "merge" in listed
 
 
 def test_capabilities_include_a_tool_whose_binary_is_present(
@@ -989,12 +1002,19 @@ def test_capabilities_include_a_tool_whose_binary_is_present(
     assert "compress" in listed
 
 
-def test_capabilities_never_include_a_tool_without_a_cloud_engine(
+def test_capabilities_only_include_tools_that_can_actually_run(
     server: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Narrowing the list must not have widened it."""
+    """Capabilities lists every tool whose local engine reports is_available().
+    Binary-dependent tools (compress, convert) appear only when the binary is
+    present; pure-Python tools (merge, split, rotate …) always appear.
+    """
     install_fake(monkeypatch, tmp_path, PANDOC_FAKE)
 
     listed = set(server.get("/v1/capabilities", headers=AUTH).json()["tools"])
 
-    assert not listed & {"merge", "split", "watermark", "from-images"}
+    # With fake pandoc, convert and compress should now appear.
+    assert "convert" in listed
+    # Pure-Python tools are always runnable.
+    assert "merge" in listed
+    assert "split" in listed
