@@ -27,6 +27,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from docmax.core.branding import CLI_NAME
 from docmax.core.errors import (
     CorruptDocumentError,
     EncryptedDocumentError,
@@ -139,7 +140,7 @@ class MergeLocal:
 
         # We use a single temp directory for all LibreOffice conversions.
         # It is cleaned up whenever the run finishes (success, error, cancel).
-        with tempfile.TemporaryDirectory(prefix="docmax_merge_") as tmp_str:
+        with tempfile.TemporaryDirectory(prefix=f"{CLI_NAME}_merge_") as tmp_str:
             tmp = Path(tmp_str)
             for document in docs:
                 # Between files is the safe checkpoint: nothing is on disk yet.
