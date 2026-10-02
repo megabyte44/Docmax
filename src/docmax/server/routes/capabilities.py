@@ -8,7 +8,8 @@ it without a line of configuration.
 **"Can do" means can run, not was compiled in.** A tool appears only when its
 *local* strategy reports itself available on this machine — the server runs the
 local engine, so "can this endpoint offer `compress`?" is exactly "is Ghostscript
-installed here?".
+installed here?". Every registered tool is now eligible; the list is bounded by
+what is actually installed, not by a hand-maintained cloud-engine allowlist.
 
 Before [ADR 0018](../../../../docs/adr/0018-capabilities-mean-runnable.md) this
 asked the registry alone, and a server with no Ghostscript, Pandoc or Tesseract
@@ -34,15 +35,15 @@ router = APIRouter(tags=["discovery"], dependencies=[Depends(require_api_key)])
 
 @router.get("/capabilities")
 async def capabilities(request: Request) -> dict[str, Any]:
-    """List the cloud-capable tools and this endpoint's limits.
+    """List every runnable tool on this deployment and its limits.
 
-    The client fetches this once and caches it, so an endpoint offering three
-    of the five cloud tools degrades to "no cloud engine for that one here"
-    rather than to a failure per call.
+    The client fetches this once and caches it, so an endpoint without (say)
+    Ghostscript installed silently omits ``compress`` rather than failing the
+    call later.
     """
     settings = request.app.state.settings
     return {
-        "tools": sorted(spec.name for spec in iter_tools(engine=Engine.CLOUD) if _runnable(spec)),
+        "tools": sorted(spec.name for spec in iter_tools() if _runnable(spec)),
         "max_sync_bytes": settings.max_sync_bytes,
         "api_version": API_VERSION,
     }
@@ -53,7 +54,7 @@ def _runnable(spec: ToolSpec) -> bool:
 
     ``is_available`` is contractually cheap — a ``shutil.which`` or a
     ``find_spec``, never an import of the heavy dependency — so asking every
-    cloud-capable tool costs a handful of path lookups, and the client fetches
+    registered tool costs a handful of path lookups, and the client fetches
     this once and caches it.
 
     A tool whose strategy cannot even be *loaded* is treated as unavailable

@@ -40,7 +40,6 @@ pytest.importorskip("fastapi", reason="the server extra is not installed")
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from docmax.core.models import Engine
 from docmax.core.registry import iter_tools
 from docmax.server.app import create_app
 from docmax.server.config import ServerSettings
@@ -62,7 +61,7 @@ KEY_B = "key-b"
 AUTH_A = {"Authorization": f"Bearer {KEY_A}"}
 AUTH_B = {"Authorization": f"Bearer {KEY_B}"}
 
-CLOUD_TOOL_NAMES = {spec.name for spec in iter_tools() if spec.supports(Engine.CLOUD)}
+ALL_TOOL_NAMES = {spec.name for spec in iter_tools()}
 
 PANDOC_FAKE = """
 out = args[args.index("--output") + 1]
@@ -453,22 +452,22 @@ def test_an_issued_token_authenticates_over_mcp(
             result = await session.list_tools()
             return {tool.name for tool in result.tools}
 
-    assert anyio.run(scenario) == CLOUD_TOOL_NAMES
+    assert anyio.run(scenario) == ALL_TOOL_NAMES
 
 
 # ---------------------------------------------------------------------------
-# Tool advertisement — only cloud-capable tools, over MCP (P1: "tool
+# Tool advertisement — all registered tools, over MCP (P1: "tool
 # advertisement vs authorization")
 # ---------------------------------------------------------------------------
 
 
-def test_mcp_tool_list_matches_the_cloud_capable_registry(app: Any) -> None:
+def test_mcp_tool_list_matches_the_full_registry(app: Any) -> None:
     async def scenario() -> set[str]:
         async with _LifespanManager(app), mcp_session(app, key=KEY_A) as (session, _captured):
             result = await session.list_tools()
             return {tool.name for tool in result.tools}
 
-    assert anyio.run(scenario) == CLOUD_TOOL_NAMES
+    assert anyio.run(scenario) == ALL_TOOL_NAMES
 
 
 def test_no_mcp_tool_offers_force(app: Any) -> None:

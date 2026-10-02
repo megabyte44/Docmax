@@ -66,7 +66,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from docmax.core.branding import APP_NAME, CLI_NAME
 from docmax.core.errors import DocMaxError, InvalidParameterError
-from docmax.core.models import Engine, JobStatus
+from docmax.core.models import JobStatus
 from docmax.core.registry import iter_tools
 from docmax.mcpschema import INPUTS, OUTPUT, described, input_schema
 from docmax.server.mcpauth import ApiKeyVerifier
@@ -95,8 +95,12 @@ SERVER_NAME = f"{CLI_NAME}-cloud"
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 _INPUTS_DESCRIPTION_ONE = (
-    "The file_id of the document to read, as a one-element array. "
-    "Obtain it from POST /v1/uploads (or the small-file path of POST /v1/tools)."
+    "The file_id of the document to process, as a one-element array. "
+    "Obtain it from POST /v1/uploads."
+)
+_INPUTS_DESCRIPTION_MANY = (
+    "The file_ids of the documents to process, as an array. "
+    "Obtain each from POST /v1/uploads. Order matters."
 )
 _OUTPUT_DESCRIPTION = (
     "Not used by this endpoint. Every call writes to a new, server-generated "
@@ -118,9 +122,14 @@ class DocMaxCloudMCP:
     # -- discovery ------------------------------------------------------
 
     def tools(self) -> list[types.Tool]:
-        """Every tool this deployment can run in the cloud — a strict subset
-        of what a local `docmax mcp` client sees, the same asymmetry
-        `/v1/capabilities` already exposes for REST.
+        """Every registered tool, described from its own ``ToolSpec``.
+
+        All tools are exposed over this transport, not just the cloud-capable
+        subset. The server runs every tool through the local engine — the same
+        engine a user's own machine would run if they had the binaries installed.
+        Local-only tools (``merge``, ``split``, ``rotate`` …) are now available
+        here for the same reason they were always available over stdio MCP: the
+        server already has everything installed.
         """
         return [
             types.Tool(
@@ -129,12 +138,15 @@ class DocMaxCloudMCP:
                 description=described(spec),
                 input_schema=input_schema(
                     spec,
-                    inputs_description=_INPUTS_DESCRIPTION_ONE,
+                    inputs_description=(
+                        _INPUTS_DESCRIPTION_MANY
+                        if spec.accepts_multiple_inputs
+                        else _INPUTS_DESCRIPTION_ONE
+                    ),
                     output_description=_OUTPUT_DESCRIPTION,
                 ),
             )
             for spec in iter_tools()
-            if spec.supports(Engine.CLOUD)
         ]
 
     async def on_list_tools(
@@ -190,29 +202,29 @@ class DocMaxCloudMCP:
         raw_inputs = arguments.get(INPUTS)
         if not isinstance(raw_inputs, list) or not raw_inputs:
             raise InvalidParameterError(
-                f"{INPUTS!r} must be a non-empty array containing one file_id.",
-                remedy="Upload the document first with POST /v1/uploads, then pass its file_id.",
-                context={"tool": spec.name},
-            )
-        if len(raw_inputs) != 1:
-            # The job model behind this route carries one `file_id` per job —
-            # a limitation of `docmax.server`'s execution model today, not of
-            # this tool's own `accepts_multiple_inputs`. Named rather than
-            # silently truncated to the first entry.
-            raise InvalidParameterError(
-                f"{spec.name!r} runs one document per call over this endpoint.",
-                remedy="Call it once per document.",
-                context={"tool": spec.name},
-            )
-        file_id = raw_inputs[0]
-        if not isinstance(file_id, str) or not file_id:
-            raise InvalidParameterError(
-                f"{INPUTS!r} must contain a file_id string.",
+                f"{INPUTS!r} must be a non-empty array of file_id strings.",
+                remedy="Upload each document first with POST /v1/uploads, then pass its file_id.",
                 context={"tool": spec.name},
             )
 
+        if not spec.accepts_multiple_inputs and len(raw_inputs) > 1:
+            raise InvalidParameterError(
+                f"{spec.name!r} accepts exactly one input document.",
+                remedy=f"Pass a single file_id in {INPUTS!r}.",
+                context={"tool": spec.name},
+            )
+
+        file_ids: list[str] = []
+        for item in raw_inputs:
+            if not isinstance(item, str) or not item:
+                raise InvalidParameterError(
+                    f"Every element of {INPUTS!r} must be a non-empty file_id string.",
+                    context={"tool": spec.name},
+                )
+            file_ids.append(item)
+
         params = {name: value for name, value in arguments.items() if name in declared}
-        return _Plan(file_id=file_id, params=params)
+        return _Plan(file_ids=file_ids, params=params)
 
     def _run(self, spec: ToolSpec, plan: _Plan, *, owner: str, base_url: str) -> Job:
         """The one place this module calls the runner.
@@ -221,10 +233,28 @@ class DocMaxCloudMCP:
         reservation in the same lookup that finds it — a caller naming a
         `file_id` it did not upload gets the identical "nothing has been
         uploaded" error a bad id would raise. See `storage.py` and ADR 0035.
+
+        For multi-input tools (``accepts_multiple_inputs=True``), the primary
+        input is the first file_id; all subsequent file_ids are fetched and
+        passed to the runner as ``extra_payloads``.
         """
-        payload = self._storage.get(plan.file_id, owner=owner)
-        filename = self._storage.filename(plan.file_id, owner=owner)
-        job = self._jobs.create(spec.name, file_id=plan.file_id, params=plan.params, owner=owner)
+        primary_id = plan.file_ids[0]
+        payload = self._storage.get(primary_id, owner=owner)
+        filename = self._storage.filename(primary_id, owner=owner)
+
+        extra_payloads: list[tuple[bytes, str]] | None = None
+        if len(plan.file_ids) > 1:
+            extra_payloads = [
+                (
+                    self._storage.get(fid, owner=owner),
+                    self._storage.filename(fid, owner=owner),
+                )
+                for fid in plan.file_ids[1:]
+            ]
+
+        job = self._jobs.create(
+            spec.name, file_id=primary_id, params=plan.params, owner=owner
+        )
         return self._runner.start(
             job,
             payload,
@@ -232,16 +262,17 @@ class DocMaxCloudMCP:
             base_url=base_url,
             storage=self._storage,
             owner=owner,
+            extra_payloads=extra_payloads,
         )
 
 
 class _Plan:
-    """A checked call: the one input file_id and the parameters the tool declared."""
+    """A checked call: the ordered input file_ids and the parameters the tool declared."""
 
-    __slots__ = ("file_id", "params")
+    __slots__ = ("file_ids", "params")
 
-    def __init__(self, *, file_id: str, params: dict[str, Any]) -> None:
-        self.file_id = file_id
+    def __init__(self, *, file_ids: list[str], params: dict[str, Any]) -> None:
+        self.file_ids = file_ids
         self.params = params
 
 

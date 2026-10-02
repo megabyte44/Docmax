@@ -40,7 +40,7 @@ from typing import TYPE_CHECKING, Protocol
 from docmax.core.atomic import atomic_write
 from docmax.core.branding import CLI_NAME
 from docmax.core.cancellation import NEVER_CANCELLED
-from docmax.core.errors import DocMaxError, EngineNotSupportedError, InternalError
+from docmax.core.errors import DocMaxError, InternalError
 from docmax.core.models import DocumentRef, Engine, JobStatus, OutputTarget
 from docmax.core.registry import get_tool
 
@@ -72,6 +72,7 @@ class ToolRunner(Protocol):
         base_url: str,
         storage: Storage,
         owner: str,
+        extra_payloads: list[tuple[bytes, str]] | None = None,
     ) -> Job:
         """Begin the work. May finish synchronously or leave the job running.
 
@@ -83,6 +84,11 @@ class ToolRunner(Protocol):
         ``owner`` is the caller's identity (its API key), threaded through so
         the output this call produces is reserved in storage under the same
         owner as the job and its input — see ADR 0035.
+
+        ``extra_payloads`` carries additional ``(bytes, filename)`` pairs for
+        tools that accept multiple inputs (``accepts_multiple_inputs=True``,
+        e.g. ``merge`` and ``from-images``). The primary ``payload``/``filename``
+        is always the first document; these are appended in order.
         """
         ...
 
@@ -92,18 +98,17 @@ class RegistryRunner:
     """Runs tools through the registry, in this process."""
 
     def resolve(self, tool_name: str) -> ToolSpec:
-        spec = get_tool(tool_name)
-        if not spec.supports(Engine.CLOUD):
-            # Not an error in the tool — a deliberate boundary. Tools whose
-            # local engine is pure Python have no cloud engine anywhere, because
-            # uploading a document to perform a millisecond-long operation is
-            # strictly worse than doing it where the document already is.
-            raise EngineNotSupportedError(
-                f"This endpoint does not offer {tool_name!r}.",
-                remedy="Run it locally instead — no installation is required for this one.",
-                context={"tool": tool_name},
-            )
-        return spec
+        """Resolve the tool from the registry.
+
+        Every registered tool can run here via the server's local engine —
+        the server is a machine that already has the binaries installed. The
+        Cloud-only filter that once lived here was removed when the remote MCP
+        route was extended to expose all tools, not just the cloud-capable
+        subset. ``EngineNotSupportedError`` is still raised for the genuine
+        "no local engine at all" case (a tool with neither engine declared),
+        but that cannot happen today: every registered tool has a local engine.
+        """
+        return get_tool(tool_name)
 
     def start(
         self,
@@ -114,8 +119,14 @@ class RegistryRunner:
         base_url: str,
         storage: Storage,
         owner: str,
+        extra_payloads: list[tuple[bytes, str]] | None = None,
     ) -> Job:
-        """Stage the payload, run the local engine over it, publish the output."""
+        """Stage the payload(s), run the local engine over them, publish the output.
+
+        ``extra_payloads`` carries additional ``(bytes, filename)`` pairs for
+        tools that accept multiple inputs (``merge``, ``from-images``,
+        ``stamp``). All inputs are staged into the same temp directory.
+        """
         spec = self.resolve(job.tool)
         strategy = spec.load_strategy(Engine.LOCAL)
 
@@ -126,7 +137,25 @@ class RegistryRunner:
         # Windows must not turn a finished job into a 500 on the way out.
         with tempfile.TemporaryDirectory(prefix=_TEMP_PREFIX, ignore_cleanup_errors=True) as work:
             root = Path(work)
-            source = root / _safe_name(filename)
+            # Build the full ordered list of (bytes, filename) pairs, primary first.
+            all_inputs: list[tuple[bytes, str]] = [(payload, filename)]
+            if extra_payloads:
+                all_inputs.extend(extra_payloads)
+
+            # Stage every input into a uniquely-named file in the temp dir so
+            # names from different uploads cannot collide. The suffix is
+            # preserved because tools decide what to read from it.
+            sources: list[Path] = []
+            for idx, (inp_bytes, inp_name) in enumerate(all_inputs):
+                safe = _safe_name(inp_name)
+                # Prefix with index so two uploads with the same filename
+                # (e.g. two "document.pdf"s passed to merge) don't collide.
+                dest_name = f"{idx}_{safe}" if len(all_inputs) > 1 else safe
+                staged = root / dest_name
+                with atomic_write(OutputTarget(destination=staged, force=True)) as handle:
+                    handle.write(inp_bytes)
+                sources.append(staged)
+
             # A directory-producing tool (`ToolSpec.produces_directory`, ADR
             # 0031) writes into `output/` as a real directory -- appending
             # `default_suffix` would turn it into a file-shaped path the local
@@ -136,15 +165,8 @@ class RegistryRunner:
             else:
                 destination = root / f"output{spec.default_suffix}"
             try:
-                # Through `atomic_write` even for a staged input in a temp
-                # directory. `core/atomic.py` is the only module permitted to
-                # write to a path, and `tests/hygiene/test_no_direct_writes.py`
-                # holds that for `server` as much as for `tools` -- a request
-                # handler is library code.
-                with atomic_write(OutputTarget(destination=source, force=True)) as handle:
-                    handle.write(payload)
                 result = strategy.run(
-                    [DocumentRef.from_path(source)],
+                    [DocumentRef.from_path(s) for s in sources],
                     OutputTarget(destination=destination, force=True),
                     progress=_NO_PROGRESS,
                     cancellation=_NEVER,
