@@ -252,9 +252,7 @@ class DocMaxCloudMCP:
                 for fid in plan.file_ids[1:]
             ]
 
-        job = self._jobs.create(
-            spec.name, file_id=primary_id, params=plan.params, owner=owner
-        )
+        job = self._jobs.create(spec.name, file_id=primary_id, params=plan.params, owner=owner)
         return self._runner.start(
             job,
             payload,

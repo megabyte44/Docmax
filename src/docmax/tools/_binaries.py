@@ -162,7 +162,7 @@ EXTERNAL_BINARIES: tuple[Binary, ...] = (
     ),
     Binary(
         name="soffice",
-        used_by=("merge",),
+        used_by=(),
         # LibreOffice ships the `soffice` executable on every platform.
         # The Windows installer also exposes it, but only after the install
         # directory is on PATH — if the user's PATH is stale a restart fixes it.

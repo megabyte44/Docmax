@@ -58,13 +58,25 @@ _PDF_SUFFIXES = frozenset({".pdf"})
 _SOFFICE_SUFFIXES = frozenset(
     {
         # Presentations
-        ".pptx", ".ppt", ".odp", ".pps", ".ppsx",
+        ".pptx",
+        ".ppt",
+        ".odp",
+        ".pps",
+        ".ppsx",
         # Word-processor documents
-        ".docx", ".doc", ".odt", ".rtf",
+        ".docx",
+        ".doc",
+        ".odt",
+        ".rtf",
         # Spreadsheets
-        ".xlsx", ".xls", ".ods", ".csv",
+        ".xlsx",
+        ".xls",
+        ".ods",
+        ".csv",
         # Other
-        ".txt", ".html", ".htm",
+        ".txt",
+        ".html",
+        ".htm",
     }
 )
 
@@ -122,9 +134,7 @@ class MergeLocal:
         # _SOFFICE_SUFFIXES knows about — an unknown extension will be refused
         # inside _convert_to_pdf with UnsupportedFormatError, which is more
         # informative than "soffice missing" and should always fire first.
-        needs_conversion = any(
-            d.suffix.lower() in _SOFFICE_SUFFIXES for d in docs
-        )
+        needs_conversion = any(d.suffix.lower() in _SOFFICE_SUFFIXES for d in docs)
         soffice_path: str | None = None
         if needs_conversion:
             soffice_path = _binaries.require("soffice", tool="merge")
