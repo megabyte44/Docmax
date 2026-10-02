@@ -4363,11 +4363,14 @@ def test_clicking_install_on_the_system_check_screen_runs_and_reports(
             button = next(iter(screen.query(Button)))
             assert button.id is not None
             identifier = button.id
-            await pilot.click(f"#{identifier}")
-            await pilot.pause()
-            await pilot.pause()
             kind, _, name = identifier.removeprefix("install-").partition("-")
-            return _text_of(screen.query_one(f"#missing-status-{kind}-{name}", Static))
+            await pilot.click(f"#{identifier}")
+            status_widget = screen.query_one(f"#missing-status-{kind}-{name}", Static)
+            for _ in range(50):
+                if calls and "Installed" in _text_of(status_widget):
+                    break
+                await pilot.pause(0.05)
+            return _text_of(status_widget)
 
     status_text = asyncio.run(scenario())
     assert calls, "the button press must reach _install.run_item"
