@@ -290,9 +290,11 @@ def test_a_known_office_format_needs_libreoffice(strategy: MergeLocal, tmp_path:
     source.write_bytes(b"PK\x03\x04dummy pptx bytes")
 
     # Simulate LibreOffice not being on PATH.
-    with unittest.mock.patch("docmax.tools._binaries.find", return_value=None):
-        with pytest.raises(LocalDependencyMissingError) as caught:
-            run(strategy, docs(source), tmp_path / "merged.pdf")
+    with (
+        unittest.mock.patch("docmax.tools._binaries.find", return_value=None),
+        pytest.raises(LocalDependencyMissingError) as caught,
+    ):
+        run(strategy, docs(source), tmp_path / "merged.pdf")
 
     assert "soffice" in str(caught.value).lower() or "libreoffice" in str(caught.value).lower()
 

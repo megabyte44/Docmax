@@ -25,9 +25,6 @@ SPEC = register(
         supported_engines=frozenset({Engine.LOCAL}),
         accepts_multiple_inputs=True,
         default_suffix=".pdf",
-        # soffice is only needed when a non-PDF input is present; it is listed
-        # here so `doctor` can surface it and guide the user to install it.
-        requires_binaries=("soffice",),
         params=(
             Param(
                 name="outline",
