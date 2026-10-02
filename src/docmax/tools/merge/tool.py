@@ -14,11 +14,7 @@ from docmax.core.registry import Param, ToolSpec, register
 SPEC = register(
     ToolSpec(
         name="merge",
-        summary=(
-            "Combine PDFs (and Office documents) into one PDF, in the order given. "
-            "PPTX, DOCX, ODT, XLSX and other LibreOffice-supported formats are "
-            "converted to PDF automatically when LibreOffice is installed."
-        ),
+        summary="Combine several PDFs into one, in the order given.",
         category="assemble",
         module=__name__.rpartition(".")[0],
         # No cloud engine, deliberately. See the module docstring.

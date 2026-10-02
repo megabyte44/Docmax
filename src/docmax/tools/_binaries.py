@@ -160,21 +160,6 @@ EXTERNAL_BINARIES: tuple[Binary, ...] = (
         homepage="https://pandoc.org/installing.html",
         size_hint="~25 MB",
     ),
-    Binary(
-        name="soffice",
-        used_by=(),
-        # LibreOffice ships the `soffice` executable on every platform.
-        # The Windows installer also exposes it, but only after the install
-        # directory is on PATH — if the user's PATH is stale a restart fixes it.
-        commands=("soffice", "libreoffice"),
-        install_argv={
-            "linux": ("apt-get", "install", "-y", "libreoffice"),
-            "macos": ("brew", "install", "--cask", "libreoffice"),
-            "windows": ("winget", "install", "--id", "TheDocumentFoundation.LibreOffice", "-e"),
-        },
-        homepage="https://www.libreoffice.org/download/download-libreoffice/",
-        size_hint="~300 MB",
-    ),
 )
 
 _BY_NAME = {binary.name: binary for binary in EXTERNAL_BINARIES}
