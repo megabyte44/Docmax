@@ -5460,3 +5460,50 @@ def test_rerun_repeats_the_same_request(tmp_path: Path, monkeypatch: pytest.Monk
             return len(router.calls)
 
     assert asyncio.run(scenario()) == 2
+
+
+# ---------------------------------------------------------------------------
+# Visual design: theme and action dock
+# ---------------------------------------------------------------------------
+
+
+def test_the_docmax_theme_is_registered_and_active() -> None:
+    import asyncio
+
+    from docmax.tui import theme
+    from docmax.tui.app import DocMaxApp
+
+    async def scenario() -> tuple[str, set[str]]:
+        app = DocMaxApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            return app.theme, set(app.available_themes)
+
+    active, available = asyncio.run(scenario())
+    assert active == theme.DEFAULT
+    assert {palette.name for palette in theme.THEMES} <= available
+
+
+def test_the_run_button_lives_in_the_dock_not_the_scrolling_form() -> None:
+    """A long form must never push Run, the status line or the result card out of view."""
+    import asyncio
+
+    from docmax.tui.app import DocMaxApp, RunScreen
+
+    async def scenario() -> tuple[str | None, bool, bool]:
+        app = DocMaxApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = RunScreen("resize")
+            app.push_screen(screen)
+            await pilot.pause()
+            run_button = screen.query_one("#run")
+            parent_ids = {ancestor.id for ancestor in run_button.ancestors}
+            on_screen = screen.region.contains_region(run_button.region)
+            status_on_screen = screen.region.contains_region(screen.query_one("#status").region)
+            return ("dock" if "dock" in parent_ids else None), on_screen, status_on_screen
+
+    where, run_visible, status_visible = asyncio.run(scenario())
+    assert where == "dock"
+    assert run_visible
+    assert status_visible

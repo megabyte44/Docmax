@@ -2,9 +2,9 @@
 
 # DocMax
 
-**The PDF toolkit that lives in your terminal.**<br>
-Merge, split, compress, OCR, protect and convert documents with one `pip install`.<br>
-No Ghostscript. No Poppler. No Docker. No upload.
+**Your documents, handled. By your AI assistant, a full-screen app, or a single command.**<br>
+Merge, split, compress, OCR, protect and convert PDFs and images from one local engine.<br>
+One `pip install`. No Ghostscript, no Poppler, no Docker, no upload.
 
 <p>
   <a href="https://pypi.org/project/Docmax/"><img src="https://img.shields.io/pypi/v/Docmax.svg?color=blue&style=flat-square" alt="PyPI version"></a>
@@ -17,8 +17,9 @@ No Ghostscript. No Poppler. No Docker. No upload.
 
 <p>
   <a href="#-quick-start">Quick start</a> ·
+  <a href="#-let-your-ai-assistant-do-it-mcp">AI assistants</a> ·
+  <a href="#-or-use-the-full-screen-app">Terminal app</a> ·
   <a href="#-what-you-can-do">Tools</a> ·
-  <a href="#-use-it-from-an-ai-assistant-mcp">AI / MCP</a> ·
   <a href="#-automate-everything">Automation</a> ·
   <a href="#-contributing">Contributing</a> ·
   <a href="CHANGELOG.md">Changelog</a>
@@ -30,45 +31,91 @@ No Ghostscript. No Poppler. No Docker. No upload.
 
 ---
 
-## Why you might want this
+## One engine, four ways in
 
-You have a folder of PDFs and a deadline. The usual options are a website that wants your
-contracts uploaded, a Docker stack to babysit, or a shell script that calls five different
-programs and corrupts the file if you hit Ctrl+C at the wrong moment.
+Every tool is declared once. The command line, the terminal app, AI assistants over MCP and the
+HTTP API are all generated from that declaration, so they run the same code and can't drift apart.
 
-DocMax is one command that does the job on your machine and leaves your files alone if
-anything goes wrong.
+What that buys you, whichever door you use:
 
-- **Installs in seconds.** The core tools run on libraries that ship as wheels for macOS, Linux and Windows.
-- **Private by default.** Everything runs locally. Nothing leaves your machine unless you opt in, per tool.
+- **Private by default.** Everything runs on your machine. Nothing is uploaded unless you opt in, per tool.
 - **Safe by construction.** Output is staged, checked, then swapped into place atomically. A crash never leaves a half-written PDF.
-- **Scriptable.** Every command speaks `--json`. Progress goes to stderr, results to stdout.
-- **Agent-ready.** A built-in [MCP](https://modelcontextprotocol.io/) server lets Claude, Cursor and friends work on your documents inside a folder you choose.
+- **Nothing to set up.** The core tools run on libraries that ship as wheels for macOS, Linux and Windows.
+- **Machine-readable.** Every command speaks `--json`, with progress on stderr and results on stdout.
 
 ## 🚀 Quick start
 
 ```bash
-pip install Docmax
+pip install "Docmax[mcp]"
 ```
 
+Pick your front door:
+
 ```bash
-# Combine PDFs
-docmax merge report_q1.pdf report_q2.pdf -o annual_report.pdf
-
-# Shrink a heavy PDF (presets: screen, ebook, printer, prepress)
-docmax compress annual_report.pdf -o smaller.pdf --preset ebook
-
-# Stamp it
-docmax watermark smaller.pdf -o final.pdf --text "CONFIDENTIAL"
-
-# Make a scan searchable (needs Tesseract, see below)
-docmax ocr scan.pdf -o searchable.pdf --lang eng+fra
-
-# Prefer a full-screen interface? Just run:
-docmax
+docmax mcp connect     # let Claude Desktop, Claude Code or Cursor use DocMax
+docmax tui             # open the full-screen app
+docmax merge report_q1.pdf report_q2.pdf -o annual_report.pdf   # or just run a command
 ```
 
 Run `docmax doctor` any time to see what is built in and what is optional on your machine.
+
+## 🤖 Let your AI assistant do it (MCP)
+
+DocMax is a [Model Context Protocol](https://modelcontextprotocol.io/) server. One command wires it into
+Claude Desktop, Claude Code and Cursor, and every tool below becomes something your assistant can call:
+
+```bash
+pip install "Docmax[mcp]"
+docmax mcp connect
+```
+
+`connect` starts the server exactly the way your app will and confirms it answers before it writes anything, then reports how many tools it found. Restart the app afterwards. If the tools don't appear, `docmax mcp check` repeats that test and prints whatever the server said.
+
+Then ask your assistant: *"Merge everything in `invoices/`, compress it for email, and tell me the final size."*
+
+The agent only gets what you allow:
+
+- **Folder confinement.** `--root` limits reads and writes to one directory. `..` and symlink escapes are rejected.
+- **No overwrites.** `--force` is disabled for agents.
+- **No surprise uploads.** The cloud engine is off, and an agent cannot grant consent for you.
+- **Cancellation works.** Interrupt a request and the underlying work stops without damaging files.
+
+<details>
+<summary>What the config looks like</summary>
+
+```json
+{
+  "mcpServers": {
+    "docmax": {
+      "command": "C:\\Python311\\python.exe",
+      "args": ["-m", "docmax", "mcp", "--root", "C:\\path\\to\\documents"]
+    }
+  }
+}
+```
+
+The command is the full path of the Python that has DocMax installed (`connect` fills it in). A bare `docmax` often works in a terminal and fails in Claude Desktop, because desktop apps do not see your shell's `PATH`.
+
+</details>
+
+## 🖥️ Or use the full-screen app
+
+No flags to remember. Search for a tool, fill in a form, and watch it run. It uses the same engines as
+the assistant and the command line, so results are identical.
+
+<div align="center">
+  <img src="docs/assets/tui.gif" alt="The DocMax terminal UI: filtering tools by typing, then opening the compress form" width="760">
+</div>
+
+```bash
+pip install Docmax
+docmax tui
+```
+
+- **Type to search.** The tool list filters as you type, and each tool shows what it takes and produces.
+- **Forms, not flags.** Pick a tool, fill in the fields, and run it, with a **Browse…** button for paths.
+- **Batch with live progress.** Press `b` to run one tool over many documents. Every file is listed up front and moves from queued to running to done, with a progress bar, per-file timing and an ETA.
+- **Works over SSH.** No browser and no display server needed.
 
 ## 🛡️ It refuses to destroy your files
 
@@ -149,19 +196,17 @@ Run `docmax --help` for the full list, or `docmax formats` to see what each tool
 
 ### What needs extra installs?
 
-The base install covers `merge`, `split`, `compress`, `to-images` and Markdown/HTML `convert`.
-Everything else is opt-in so you only install what you use:
+`pip install Docmax` includes the CLI, the TUI, the image tools, AES encryption and OCR
+deskewing. Only the heavy or niche pieces are opt-in:
 
 ```bash
-pip install "Docmax[tui]"        # full-screen terminal interface
-pip install "Docmax[crypto]"     # AES-256 for protect / unlock
-pip install "Docmax[ocr]"        # deskewing for scans
-pip install "Docmax[images]"     # image tools, from-images
 pip install "Docmax[tables]"     # table extraction
 pip install "Docmax[remove-bg]"  # background removal
 pip install "Docmax[mcp]"        # AI assistant server
 pip install "Docmax[all]"        # everything above except mcp and server
 ```
+
+(`Docmax[tui]`, `[images]`, `[crypto]` and `[ocr]` still work; they are already included.)
 
 Two optional programs add capability. Both have a cloud fallback via `--engine cloud`:
 
@@ -173,40 +218,6 @@ Two optional programs add capability. Both have a cloud fallback via `--engine c
 > PyMuPDF does the rendering and compression. It is AGPL-3.0 (commercial licences are available
 > from Artifex) and is installed alongside DocMax, not bundled. Read its licence before
 > redistributing a product built on top of this.
-
-## 🤖 Use it from an AI assistant (MCP)
-
-One command wires DocMax into Claude Desktop, Claude Code and Cursor:
-
-```bash
-pip install "Docmax[mcp]"
-docmax mcp connect
-```
-
-Then ask your assistant: *"Merge everything in `invoices/`, compress it for email, and tell me the final size."*
-
-The agent only gets what you allow:
-
-- **Folder confinement.** `--root` limits reads and writes to one directory. `..` and symlink escapes are rejected.
-- **No overwrites.** `--force` is disabled for agents.
-- **No surprise uploads.** The cloud engine is off, and an agent cannot grant consent for you.
-- **Cancellation works.** Interrupt a request and the underlying work stops without damaging files.
-
-<details>
-<summary>What the config looks like</summary>
-
-```json
-{
-  "mcpServers": {
-    "docmax": {
-      "command": "docmax",
-      "args": ["mcp", "--root", "/path/to/documents"]
-    }
-  }
-}
-```
-
-</details>
 
 ## ⚙️ Automate everything
 

@@ -36,8 +36,9 @@ classifiers = [
 # The base install is "everything a document tool needs, with no system
 # packages": rendering, compression and simple conversions run in-process on
 # PyMuPDF and `markdown`, both of which ship wheels for every supported
-# platform. Heavy ML-ish deps (OpenCV, rembg) still live in extras and are
-# imported lazily, never at module scope. See tests/hygiene/test_no_heavy_imports.py
+# platform. The TUI, image tools, encryption and OCR deskew are included too. Only
+# the genuinely heavy or niche pieces (rembg, tables, server, mcp) stay in extras.
+# Everything is imported lazily, never at module scope. See tests/hygiene/test_no_heavy_imports.py
 #
 # PyMuPDF is AGPL-3.0 (or commercial from Artifex). It is installed alongside
 # DocMax, not bundled into it, but anyone redistributing a product built on this
@@ -49,6 +50,16 @@ dependencies = [
     "pypdf>=4.2.0",
     "pymupdf>=1.24.2",
     "markdown>=3.4.0",
+    # Everything a first run of the CLI or TUI can reach, so `pip install Docmax`
+    # is the whole install and nothing fails with "install the [x] extra".
+    # The extras of the same names below stay defined (and are harmless to
+    # request) so existing `Docmax[tui]` instructions keep working.
+    "textual>=1.0.0",
+    "Pillow>=10.3.0",
+    "img2pdf>=0.5.0",
+    "cryptography>=42.0",
+    "opencv-python-headless>=4.9.0",
+    "numpy>=1.26.0",
     "platformdirs>=4.2.0",
     "httpx>=0.27.0",
 ]

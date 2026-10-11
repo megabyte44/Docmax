@@ -56,7 +56,9 @@ The GIFs in `docs/assets/` are rendered from real command output:
 
 ```bash
 pip install -e . pillow
-python scripts/make_demo_gifs.py
+python scripts/make_demo_gifs.py        # CLI demos, from real command output
+pip install -e ".[tui]"
+python scripts/make_tui_gif.py          # TUI demo, driving the real Textual app
 ```
 
 ## Conduct

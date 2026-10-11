@@ -332,7 +332,9 @@ def test_each_finished_item_appears_as_a_row_via_on_outcome(tmp_path: Path) -> N
     rows = asyncio.run(scenario())
     assert len(rows) == 2
     assert "ok.pdf" in rows[0]
-    assert str(tmp_path / "out" / "ok.pdf") in rows[0]
+    # The Result column shows the file name, not the whole path: the panel is
+    # half the screen, and the output directory is already on the form.
+    assert rows[0].count("ok.pdf") == 2
     assert "bad.pdf" in rows[1]
     assert any("boom" in str(cell) for cell in rows[1])
 
@@ -476,3 +478,140 @@ def test_running_with_no_tool_documents_or_output_dir_is_refused_before_any_work
             return isinstance(app.screen, ErrorScreen)
 
     assert asyncio.run(scenario())
+
+
+# ---------------------------------------------------------------------------
+# Live progress
+# ---------------------------------------------------------------------------
+
+
+def _row_states(screen: Any) -> list[str]:
+    return list(screen._row_state.values())
+
+
+def test_every_document_is_queued_before_the_first_one_finishes(tmp_path: Path) -> None:
+    """The whole job is visible up front: one row per input, the first marked
+    running and the rest waiting -- not a table that only grows as outcomes
+    arrive."""
+    import asyncio
+
+    from textual.widgets import DataTable
+
+    from docmax.tui.app import BatchScreen, DocMaxApp
+
+    docs = [_touch(tmp_path / f"{n}.pdf") for n in "abc"]
+
+    async def scenario() -> tuple[int, list[str]]:
+        app = DocMaxApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            screen = BatchScreen()
+            app.push_screen(screen)
+            await pilot.pause()
+            screen._begin_progress(tuple(docs))
+            await pilot.pause()
+            table = screen.query_one("#batch-results", DataTable)
+            return table.row_count, _row_states(screen)
+
+    count, states = asyncio.run(scenario())
+    assert count == 3
+    assert states == ["running", "queued", "queued"]
+
+
+def test_progress_bar_and_stats_follow_the_outcomes(tmp_path: Path) -> None:
+    import asyncio
+
+    from textual.widgets import ProgressBar, Static
+
+    from docmax.core.errors import InternalError
+    from docmax.runners.batch import ItemOutcome
+    from docmax.tui.app import BatchScreen, DocMaxApp
+
+    docs = [_touch(tmp_path / f"{n}.pdf") for n in "abc"]
+    out = tmp_path / "out"
+
+    async def scenario() -> tuple[float, str, list[str]]:
+        app = DocMaxApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            screen = BatchScreen()
+            app.push_screen(screen)
+            await pilot.pause()
+            screen._begin_progress(tuple(docs))
+            screen._append_outcome(
+                ItemOutcome(
+                    source=docs[0],
+                    destination=out / "a.pdf",
+                    result=ToolResult(outputs=(out / "a.pdf",), engine_used=Engine.LOCAL),
+                )
+            )
+            screen._append_outcome(ItemOutcome(source=docs[1], error=InternalError("boom")))
+            await pilot.pause()
+            bar = screen.query_one("#batch-bar", ProgressBar)
+            stats = str(screen.query_one("#batch-stats", Static).content)
+            return bar.progress, stats, _row_states(screen)
+
+    progress, stats, states = asyncio.run(scenario())
+    assert progress == 2
+    assert "2 of 3 done" in stats
+    assert "1 ok" in stats
+    assert "1 failed" in stats
+    assert states == ["ok", "failed", "running"]
+
+
+def test_documents_that_never_ran_are_marked_skipped_when_the_run_ends(tmp_path: Path) -> None:
+    """A cancelled run must not leave rows looking as though they are about to
+    be processed."""
+    import asyncio
+
+    from docmax.tui.app import BatchScreen, DocMaxApp
+
+    docs = [_touch(tmp_path / f"{n}.pdf") for n in "ab"]
+
+    async def scenario() -> list[str]:
+        app = DocMaxApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            screen = BatchScreen()
+            app.push_screen(screen)
+            await pilot.pause()
+            screen._begin_progress(tuple(docs))
+            screen._finished()
+            await pilot.pause()
+            return _row_states(screen)
+
+    assert asyncio.run(scenario()) == ["skipped", "skipped"]
+
+
+def test_an_outcome_for_an_unlisted_document_still_gets_a_row(tmp_path: Path) -> None:
+    import asyncio
+
+    from textual.widgets import DataTable
+
+    from docmax.core.errors import InternalError
+    from docmax.runners.batch import ItemOutcome
+    from docmax.tui.app import BatchScreen, DocMaxApp
+
+    async def scenario() -> int:
+        app = DocMaxApp()
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            screen = BatchScreen()
+            app.push_screen(screen)
+            await pilot.pause()
+            screen._append_outcome(
+                ItemOutcome(source=tmp_path / "stray.pdf", error=InternalError("x"))
+            )
+            await pilot.pause()
+            return screen.query_one("#batch-results", DataTable).row_count
+
+    assert asyncio.run(scenario()) == 1
+
+
+def test_the_clock_formats_minutes_and_seconds() -> None:
+    from docmax.tui.app import _clock
+
+    assert _clock(0) == "0:00"
+    assert _clock(7.9) == "0:07"
+    assert _clock(65) == "1:05"
+    assert _clock(-3) == "0:00"

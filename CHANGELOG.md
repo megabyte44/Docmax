@@ -10,6 +10,15 @@ structurally unable to grow — no tests, no atomic writes, no typed errors, and
 a single-engine design with hardcoded dispatch. v3 keeps the command surface
 and rebuilds everything underneath it.
 
+### Changed — the TUI batch screen shows the run as it happens
+
+- **Every document is queued up front** and moves through queued, running and done (or failed) as
+  the batch works through them, with a spinner on the active row and a per-document time.
+- **A progress bar and a live summary** (`3 of 12 done · 2 ok · 1 failed · 0:07 elapsed · ~0:21 left`)
+  sit beside the form on wide terminals and stack under it on narrow ones.
+- **A cancelled or refused run** marks the documents that never ran instead of leaving them looking
+  pending, and a finished run offers **Open output folder**.
+
 ### Changed — zero system binaries for the core tools
 
 - **`to-images`, `compress` and Markdown/HTML `convert` no longer need Poppler,
@@ -28,6 +37,22 @@ and rebuilds everything underneath it.
   text-only PDFs shrink less. The result reports real byte counts.
 - Cancelling `compress` mid-run now takes effect when the in-process work returns,
   rather than killing a subprocess; nothing is written either way.
+
+### Changed — TUI visual redesign
+
+- New palettes (`tui/theme.py`: dark `docmax`, light `docmax-light`, switchable from the
+  command palette) and a single stylesheet (`tui/styles.py`) built only from theme tokens.
+- Flat, consistent buttons with one filled primary; Cancel sits alone at the far right.
+- **Run, status and the result card now live in a dock below the form**, so they stay on
+  screen however long the form is. Fields are dense single rows with a focus bar.
+- Taller header; the tool preview shows aligned, styled facts. Widget ids and classes are
+  unchanged.
+
+### Changed — one install
+
+- `pip install Docmax` now includes the TUI (`textual`), image tools (Pillow, img2pdf),
+  encryption (`cryptography`) and OCR deskew (OpenCV, numpy). `Docmax[tui]` and the other
+  extras still work. `remove-bg`, `tables`, `server` and `mcp` remain optional.
 
 ### Breaking
 
