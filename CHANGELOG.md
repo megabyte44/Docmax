@@ -3,6 +3,30 @@
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [semantic versioning](https://semver.org/).
 
+## [3.3.4] — 2026-10-12
+
+### Added
+
+- **All 24 tools are now exposed over HTTP MCP and REST**, not just the
+  cloud-capable subset. The server runs every tool through the local engine —
+  the same engine a local `docmax mcp` client uses — so `merge`, `split`,
+  `rotate`, and other pure-Python tools are now accessible over the cloud
+  transport without any change to clients.
+- **Multi-input support over MCP.** Tools that accept more than one document
+  (`merge`, `from-images`, `stamp`) now accept an array of `file_id`s over the
+  HTTP MCP transport, matching the stdio MCP behaviour. Previously the route
+  silently allowed only one file per call.
+
+### Fixed
+
+- **TUI install button race** — the system-check screen now polls for the
+  "Installed" state before returning, eliminating a timing-dependent assertion
+  failure in the test suite.
+- `POST /v1/capabilities` now lists every tool whose local engine reports
+  `is_available()`, including pure-Python tools that require no binary.
+  Binary-dependent tools (compress, convert) still appear only when their
+  binary is present.
+
 ## [Unreleased] — 3.0.0
 
 DocMax 3 is a clean-room rewrite. v2 was a working, published tool; it was also
